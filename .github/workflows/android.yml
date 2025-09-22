@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -19,16 +20,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install buildozer cython==0.29.36 virtualenv
 
-      - name: Setup env (free)
+      - name: Setup env
         run: |
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=${{ github.workspace }}/.android/sdk" >> $GITHUB_ENV
           echo "PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:${{ github.workspace }}/.android/sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.android/sdk/platform-tools:${PATH}" >> $GITHUB_ENV
 
       - name: Install Android SDK/NDK (cmdline-tools)
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
-          JAVA_HOME: ${{ env.JAVA_HOME }}
+        env: { ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}, JAVA_HOME: ${{ env.JAVA_HOME }} }
         run: |
           set -e
           mkdir -p "$ANDROID_SDK_ROOT"
@@ -48,9 +47,8 @@ jobs:
             "ndk;25.1.8937393" \
             "cmake;3.22.1"
 
-      - name: Clean buildozer internal SDK and copy real binaries
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+      - name: Reset & copy internal SDK (physical files)
+        env: { ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }} }
         run: |
           set -e
           INTERNAL="$HOME/.buildozer/android/platform/android-sdk"
@@ -61,8 +59,8 @@ jobs:
           rsync -a "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/" "$INTERNAL/cmdline-tools/latest/bin/"
           cp "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$INTERNAL/tools/bin/sdkmanager"
           chmod +x "$INTERNAL/tools/bin/sdkmanager"
-          echo "# which aidl"; which aidl || true
-          echo "# which sdkmanager"; which sdkmanager || true
+          which aidl || true
+          which sdkmanager || true
           test -x "$INTERNAL/tools/bin/sdkmanager" || (echo "internal sdkmanager missing"; exit 1)
           test -d "$INTERNAL/build-tools" || (echo "internal build-tools missing"; exit 1)
 
@@ -80,19 +78,36 @@ jobs:
           NDKAPI: '23'
           PATH: $HOME/.buildozer/android/platform/android-sdk/build-tools/34.0.0:$HOME/.buildozer/android/platform/android-sdk/build-tools/33.0.2:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.PATH }}
         run: |
+          set -e
           python -V
-          buildozer android debug
+          # 표준 출력/에러를 파일로도 저장(추후 스니펫 추출 용)
+          buildozer android debug 2>&1 | tee .buildozer/.full_build_output
+          test -f bin/*.apk || exit 1
 
-      - name: Upload error snippet (15 lines) and save to artifact
+      - name: Upload APK (free artifact)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: toopen4-apk
+          path: bin/*.apk
+
+      - name: Extract 15-line error snippet (robust)
         if: failure()
         run: |
           mkdir -p error_snippet
-          tail -n 15 .buildozer/android/platform/build-armeabi-v7a_arm64-v8a/build/bootstraps/sdl2/build.log > error_snippet/error_snippet_15.txt || \
-          tail -n 15 .buildozer/android/platform/build-armeabi-v7a_arm64-v8a/build/*.log > error_snippet/error_snippet_15.txt || \
-          tail -n 15 .buildozer/.last_build_output > error_snippet/error_snippet_15.txt || true
-        shell: bash
-      - uses: actions/upload-artifact@v4
+          # 우선순위: 부트스트랩 로그 → 기타 로그 → 전체 출력
+          tail -n 15 .buildozer/android/platform/build-*/build/bootstraps/*/build.log > error_snippet/error_snippet_15.txt 2>/dev/null || \
+          tail -n 15 .buildozer/android/platform/build-*/build/*.log > error_snippet/error_snippet_15.txt 2>/dev/null || \
+          tail -n 15 .buildozer/.full_build_output > error_snippet/error_snippet_15.txt 2>/dev/null || \
+          echo "[no logs] build stopped before logs were created" > error_snippet/error_snippet_15.txt
+          # WordMaster 번들(zip)로 저장(로컬 다운로드용)
+          zip -j error_snippet/WordMaster_error_snippet.zip error_snippet/error_snippet_15.txt
+
+      - name: Upload error snippet (artifact)
         if: failure()
+        uses: actions/upload-artifact@v4
         with:
           name: error-snippet-15
-          path: error_snippet/error_snippet_15.txt
+          path: |
+            error_snippet/error_snippet_15.txt
+            error_snippet/WordMaster_error_snippet.zip
