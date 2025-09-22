@@ -52,7 +52,7 @@ jobs:
             "ndk;25.1.8937393" \
             "cmake;3.22.1"
 
-      - name: Reset & copy internal SDK (real files + android stub)
+      - name: Prepare buildozer internal SDK (copy + android stub)
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         run: |
@@ -77,6 +77,17 @@ jobs:
           } > "$INTERNAL/tools/bin/android"
           chmod +x "$INTERNAL/tools/bin/android"
 
+      - name: Preflight checks (print decisive info)
+        run: |
+          set -e
+          echo ">>> which java"; which java; java -version || true
+          echo ">>> ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo ">>> which sdkmanager"; which sdkmanager || true
+          echo ">>> which aidl (34.0.0/33.0.2)"; which aidl || true
+          echo ">>> internal sdk paths"
+          ls -al "$HOME/.buildozer/android/platform/android-sdk/tools/bin" || true
+          ls -al "$HOME/.buildozer/android/platform/android-sdk/build-tools" || true
+
       - name: Cache .buildozer (free)
         uses: actions/cache@v4
         with:
@@ -93,7 +104,9 @@ jobs:
         run: |
           set -e
           mkdir -p .buildozer
+          # 전체 로그를 두 파일로 저장(tee + 별도 복사)
           buildozer --log-level=2 android debug 2>&1 | tee .buildozer/.full_build_output
+          cp .buildozer/.full_build_output .buildozer/.full_build_output.copy || true
           test -f bin/*.apk || exit 1
 
       - name: Upload APK (free artifact)
@@ -109,11 +122,11 @@ jobs:
           mkdir -p error_snippet
           tail -n 15 .buildozer/android/platform/build-*/build/bootstraps/*/build.log > error_snippet/error_snippet_15.txt 2>/dev/null || \
           tail -n 15 .buildozer/android/platform/build-*/build/*.log > error_snippet/error_snippet_15.txt 2>/dev/null || \
-          tail -n 15 .buildozer/.full_build_output > error_snippet/error_snippet_15.txt 2>/dev/null || \
+          tail -n 15 .buildozer/.full_build_output.copy > error_snippet/error_snippet_15.txt 2>/dev/null || \
           echo "[no logs] build stopped before logs were created" > error_snippet/error_snippet_15.txt
           zip -j error_snippet/WordMaster_error_snippet.zip error_snippet/error_snippet_15.txt
 
-      - name: Upload error snippet (artifact)
+      - name: Upload error snippet + full log (artifact)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -121,3 +134,4 @@ jobs:
           path: |
             error_snippet/error_snippet_15.txt
             error_snippet/WordMaster_error_snippet.zip
+            .buildozer/.full_build_output.copy
