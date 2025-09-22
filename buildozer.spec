@@ -16,6 +16,8 @@ android.ndk = 25b
 android.archs = armeabi-v7a,arm64-v8a
 presplash.filename = assets/splash.png
 log_level = 2
+version = 2.0.0
+numeric_version = 20000
 android.manifest.intent_filters = <category android:name="android.intent.category.LAUNCHER"/>
 [buildozer]
 log_level = 2

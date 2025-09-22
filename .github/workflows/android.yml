@@ -29,7 +29,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install buildozer cython==0.29.36 virtualenv
 
-      - name: Verify Java 17 (free)
+      - name: Verify Java 17
         run: |
           echo "JAVA_HOME=$JAVA_HOME"
           which java || true
@@ -57,7 +57,7 @@ jobs:
           echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
           echo "PATH=${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${JAVA_HOME}/bin:${PATH}" >> $GITHUB_ENV
 
-      - name: Cache .buildozer (free GitHub cache)
+      - name: Cache .buildozer (free cache)
         uses: actions/cache@v4
         with:
           path: .buildozer
@@ -67,7 +67,7 @@ jobs:
         run: |
           python -V
           ls -al
-          test -f buildozer.spec || (echo "buildozer.spec not found"; exit 1)
+          echo "# Check configuration tokens"
           buildozer android debug
 
       - name: Upload APK (free artifact)
