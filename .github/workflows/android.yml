@@ -65,7 +65,7 @@ jobs:
           rsync -a "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/" "$INTERNAL/cmdline-tools/latest/bin/"
           cp "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$INTERNAL/tools/bin/sdkmanager"
           chmod +x "$INTERNAL/tools/bin/sdkmanager"
-          cat > "$INTERNAL/tools/bin/android" << 'SH'
+cat > "$INTERNAL/tools/bin/android" <<'SH'
 #!/usr/bin/env bash
 DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ -x "$DIR/sdkmanager" ]; then
