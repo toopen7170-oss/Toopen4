@@ -3,40 +3,29 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
-
 jobs:
   build:
     runs-on: ubuntu-22.04
-    defaults:
-      run:
-        shell: bash
-        working-directory: ./
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install deps (free/open-source)
+      - name: Install deps (free)
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential git zip unzip libffi-dev libssl-dev libsndfile1 curl openjdk-17-jdk rsync
-          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=${{ github.workspace }}/.android/sdk" >> $GITHUB_ENV
-          echo "ANDROID_HOME=${{ github.workspace }}/.android/sdk" >> $GITHUB_ENV
-          echo "PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:${{ github.workspace }}/.android/sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.android/sdk/platform-tools:${PATH}" >> $GITHUB_ENV
           python -m pip install --upgrade pip
           python -m pip install buildozer cython==0.29.36 virtualenv
 
-      - name: Verify Java 17
+      - name: Setup env (free)
         run: |
-          which java || true
-          java -version
+          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=${{ github.workspace }}/.android/sdk" >> $GITHUB_ENV
+          echo "PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:${{ github.workspace }}/.android/sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.android/sdk/platform-tools:${PATH}" >> $GITHUB_ENV
 
-      - name: Install Android cmdline-tools + SDK/NDK (official free)
+      - name: Install Android SDK/NDK (cmdline-tools)
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
           JAVA_HOME: ${{ env.JAVA_HOME }}
@@ -49,10 +38,8 @@ jobs:
           unzip -q -o cmdtools.zip -d cmdline-tools
           [ -d cmdline-tools/cmdline-tools ] && mv -f cmdline-tools/cmdline-tools cmdline-tools/latest || true
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$JAVA_HOME/bin:$PATH"
-
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
           yes | sdkmanager --licenses || true
-
           sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-34" \
@@ -61,8 +48,23 @@ jobs:
             "ndk;25.1.8937393" \
             "cmake;3.22.1"
 
-          echo "== AIDL locations =="
-          find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 2 -name aidl -print || true
+      - name: Clean buildozer internal SDK and copy real binaries
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+        run: |
+          set -e
+          INTERNAL="$HOME/.buildozer/android/platform/android-sdk"
+          rm -rf "$HOME/.buildozer/android/platform" || true
+          mkdir -p "$INTERNAL/cmdline-tools/latest/bin" "$INTERNAL/tools/bin" "$INTERNAL/platform-tools" "$INTERNAL/build-tools"
+          rsync -a "$ANDROID_SDK_ROOT/platform-tools/" "$INTERNAL/platform-tools/"
+          rsync -a "$ANDROID_SDK_ROOT/build-tools/" "$INTERNAL/build-tools/"
+          rsync -a "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/" "$INTERNAL/cmdline-tools/latest/bin/"
+          cp "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$INTERNAL/tools/bin/sdkmanager"
+          chmod +x "$INTERNAL/tools/bin/sdkmanager"
+          echo "# which aidl"; which aidl || true
+          echo "# which sdkmanager"; which sdkmanager || true
+          test -x "$INTERNAL/tools/bin/sdkmanager" || (echo "internal sdkmanager missing"; exit 1)
+          test -d "$INTERNAL/build-tools" || (echo "internal build-tools missing"; exit 1)
 
       - name: Cache .buildozer (free)
         uses: actions/cache@v4
@@ -70,45 +72,27 @@ jobs:
           path: .buildozer
           key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: Build with Buildozer (copy real binaries into internal SDK)
+      - name: Build with Buildozer
         env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
-          JAVA_HOME: ${{ env.JAVA_HOME }}
-          PATH: ${{ env.ANDROID_SDK_ROOT }}/build-tools/34.0.0:${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.2:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.JAVA_HOME }}/bin:${{ env.PATH }}
+          ANDROIDSDK: $HOME/.buildozer/android/platform/android-sdk
+          ANDROIDNDK: ${{ env.ANDROID_SDK_ROOT }}/ndk/25.1.8937393
+          ANDROIDAPI: '34'
+          NDKAPI: '23'
+          PATH: $HOME/.buildozer/android/platform/android-sdk/build-tools/34.0.0:$HOME/.buildozer/android/platform/android-sdk/build-tools/33.0.2:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.PATH }}
         run: |
-          set -e
-
-          INTERNAL_SDK="$HOME/.buildozer/android/platform/android-sdk"
-          mkdir -p "$INTERNAL_SDK"
-          # SDK 전체를 내부 루트에 동기화(필수 디렉터리 위주, 하드링크/카피)
-          mkdir -p "$INTERNAL_SDK/cmdline-tools/latest/bin" "$INTERNAL_SDK/platform-tools" "$INTERNAL_SDK/build-tools" "$INTERNAL_SDK/tools/bin"
-          rsync -a "$ANDROID_SDK_ROOT/build-tools/" "$INTERNAL_SDK/build-tools/" || true
-          rsync -a "$ANDROID_SDK_ROOT/platform-tools/" "$INTERNAL_SDK/platform-tools/" || true
-          rsync -a "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/" "$INTERNAL_SDK/cmdline-tools/latest/bin/" || true
-
-          # sdkmanager 실파일 복사(링크 대신 실제 파일)
-          if [ -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
-            cp "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$INTERNAL_SDK/tools/bin/sdkmanager"
-            chmod +x "$INTERNAL_SDK/tools/bin/sdkmanager"
-          fi
-
-          echo "# which aidl"
-          which aidl || (echo "aidl not found in PATH"; exit 1)
-          echo "# which sdkmanager"
-          which sdkmanager || (echo "sdkmanager not found in PATH"; exit 1)
-          echo "# internal checks"
-          test -x "$INTERNAL_SDK/tools/bin/sdkmanager" || (echo "internal sdkmanager missing"; exit 1)
-          test -d "$INTERNAL_SDK/build-tools" || (echo "internal build-tools missing"; exit 1)
-
-          export ANDROIDSDK="$INTERNAL_SDK"
-          export ANDROIDNDK="$ANDROID_SDK_ROOT/ndk/25.1.8937393"
-          export ANDROIDAPI=34
-          export NDKAPI=23
-
+          python -V
           buildozer android debug
 
-      - name: Upload APK (free artifact)
-        uses: actions/upload-artifact@v4
+      - name: Upload error snippet (15 lines) and save to artifact
+        if: failure()
+        run: |
+          mkdir -p error_snippet
+          tail -n 15 .buildozer/android/platform/build-armeabi-v7a_arm64-v8a/build/bootstraps/sdl2/build.log > error_snippet/error_snippet_15.txt || \
+          tail -n 15 .buildozer/android/platform/build-armeabi-v7a_arm64-v8a/build/*.log > error_snippet/error_snippet_15.txt || \
+          tail -n 15 .buildozer/.last_build_output > error_snippet/error_snippet_15.txt || true
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        if: failure()
         with:
-          name: toopen4-apk
-          path: bin/*.apk
+          name: error-snippet-15
+          path: error_snippet/error_snippet_15.txt
