@@ -52,7 +52,7 @@ jobs:
             "ndk;25.1.8937393" \
             "cmake;3.22.1"
 
-      - name: Reset & copy internal SDK (physical files)
+      - name: Reset & copy internal SDK (physical files + android stub)
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         run: |
@@ -63,11 +63,28 @@ jobs:
           rsync -a "$ANDROID_SDK_ROOT/platform-tools/" "$INTERNAL/platform-tools/"
           rsync -a "$ANDROID_SDK_ROOT/build-tools/" "$INTERNAL/build-tools/"
           rsync -a "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/" "$INTERNAL/cmdline-tools/latest/bin/"
+          # copy real sdkmanager
           cp "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$INTERNAL/tools/bin/sdkmanager"
           chmod +x "$INTERNAL/tools/bin/sdkmanager"
+          # create legacy 'android' stub that proxies to sdkmanager (some p4a checks still look for 'android')
+          cat > "$INTERNAL/tools/bin/android" << 'SH'
+#!/usr/bin/env bash
+# legacy android tool stub -> call sdkmanager/help to satisfy existence checks
+DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -x "$DIR/sdkmanager" ]; then
+  "$DIR/sdkmanager" --help >/dev/null 2>&1 || true
+  exit 0
+fi
+echo "android stub: sdkmanager not found" >&2
+exit 0
+SH
+          chmod +x "$INTERNAL/tools/bin/android"
+
+          echo "# check binaries"
           which aidl || true
           which sdkmanager || true
           test -x "$INTERNAL/tools/bin/sdkmanager" || (echo "internal sdkmanager missing"; exit 1)
+          test -x "$INTERNAL/tools/bin/android" || (echo "android stub missing"; exit 1)
           test -d "$INTERNAL/build-tools" || (echo "internal build-tools missing"; exit 1)
 
       - name: Cache .buildozer (free)
@@ -86,7 +103,6 @@ jobs:
         run: |
           set -e
           python -V
-          # capture full output for snippet fallback
           buildozer android debug 2>&1 | tee .buildozer/.full_build_output
           test -f bin/*.apk || exit 1
 
@@ -106,6 +122,7 @@ jobs:
           tail -n 15 .buildozer/.full_build_output > error_snippet/error_snippet_15.txt 2>/dev/null || \
           echo "[no logs] build stopped before logs were created" > error_snippet/error_snippet_15.txt
           zip -j error_snippet/WordMaster_error_snippet.zip error_snippet/error_snippet_15.txt
+        shell: bash
 
       - name: Upload error snippet (artifact)
         if: failure()
