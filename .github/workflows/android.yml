@@ -10,6 +10,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -19,7 +21,12 @@ jobs:
       - name: Install deps (free)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git zip unzip libffi-dev libssl-dev libsndfile1 curl openjdk-17-jdk rsync
+          sudo apt-get install -y build-essential git zip unzip libffi-dev libssl-dev libsndfile1 curl openjdk-17-jdk rsync ca-certificates
+          git --version
+          # git 네트워크 안정화 옵션
+          git config --global advice.detachedHead false
+          git config --global http.postBuffer 524288000
+          git config --global core.longpaths true
           python -m pip install --upgrade pip
           python -m pip install buildozer cython==0.29.36 virtualenv
 
@@ -28,6 +35,10 @@ jobs:
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=${{ github.workspace }}/.android/sdk" >> $GITHUB_ENV
           echo "PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:${{ github.workspace }}/.android/sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.android/sdk/platform-tools:${PATH}" >> $GITHUB_ENV
+          # p4a의 git 의존 다운로드 시 토큰 요구를 피하고, rate-limit 완화
+          echo "GIT_ASKPASS=true" >> $GITHUB_ENV
+          echo "GIT_TERMINAL_PROMPT=0" >> $GITHUB_ENV
+          echo "GIT_CURL_VERBOSE=1" >> $GITHUB_ENV
 
       - name: Install Android SDK/NDK (cmdline-tools)
         env:
@@ -68,25 +79,23 @@ jobs:
           {
             echo '#!/usr/bin/env bash'
             echo 'DIR="$(cd "$(dirname "$0")" && pwd)"'
-            echo 'if [ -x "$DIR/sdkmanager" ]; then'
-            echo '  "$DIR/sdkmanager" --help >/dev/null 2>&1 || true'
-            echo '  exit 0'
-            echo 'fi'
+            echo 'if [ -x "$DIR/sdkmanager" ]; then "$DIR/sdkmanager" --help >/dev/null 2>&1 || true; exit 0; fi'
             echo 'echo "android stub: sdkmanager not found" >&2'
             echo 'exit 0'
           } > "$INTERNAL/tools/bin/android"
           chmod +x "$INTERNAL/tools/bin/android"
 
-      - name: Preflight checks (print decisive info)
+      - name: Preflight checks (java/git/net/aidl/sdkmanager)
         run: |
           set -e
-          echo ">>> which java"; which java; java -version || true
+          echo ">>> java"; which java; java -version || true
+          echo ">>> git"; which git; git --version || true
+          echo ">>> network quick check"; curl -I -s https://github.com | head -n 1 || true
           echo ">>> ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
           echo ">>> which sdkmanager"; which sdkmanager || true
-          echo ">>> which aidl (34.0.0/33.0.2)"; which aidl || true
-          echo ">>> internal sdk paths"
-          ls -al "$HOME/.buildozer/android/platform/android-sdk/tools/bin" || true
-          ls -al "$HOME/.buildozer/android/platform/android-sdk/build-tools" || true
+          echo ">>> which aidl"; which aidl || true
+          echo ">>> internal tools/bin"; ls -al "$HOME/.buildozer/android/platform/android-sdk/tools/bin" || true
+          echo ">>> internal build-tools"; ls -al "$HOME/.buildozer/android/platform/android-sdk/build-tools" || true
 
       - name: Cache .buildozer (free)
         uses: actions/cache@v4
@@ -94,17 +103,21 @@ jobs:
           path: .buildozer
           key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: Build with Buildozer (pre-create log dir, log_level=2)
+      - name: Build with Buildozer (full log, stop on error)
         env:
           ANDROIDSDK: $HOME/.buildozer/android/platform/android-sdk
           ANDROIDNDK: ${{ env.ANDROID_SDK_ROOT }}/ndk/25.1.8937393
           ANDROIDAPI: '34'
           NDKAPI: '23'
           PATH: $HOME/.buildozer/android/platform/android-sdk/build-tools/34.0.0:$HOME/.buildozer/android/platform/android-sdk/build-tools/33.0.2:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.PATH }}
+          # p4a git 동작 안정화를 위해
+          GIT_ASKPASS: ${{ env.GIT_ASKPASS }}
+          GIT_TERMINAL_PROMPT: ${{ env.GIT_TERMINAL_PROMPT }}
+          GIT_CURL_VERBOSE: ${{ env.GIT_CURL_VERBOSE }}
         run: |
           set -e
           mkdir -p .buildozer
-          # 전체 로그를 두 파일로 저장(tee + 별도 복사)
+          # 전체 로그 저장
           buildozer --log-level=2 android debug 2>&1 | tee .buildozer/.full_build_output
           cp .buildozer/.full_build_output .buildozer/.full_build_output.copy || true
           test -f bin/*.apk || exit 1
