@@ -25,7 +25,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential git zip unzip libffi-dev libssl-dev libsndfile1 curl openjdk-17-jdk
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
-          echo "PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:${PATH}" >> $GITHUB_ENV
+          echo "ANDROID_HOME=${{ github.workspace }}/.android/sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=${{ github.workspace }}/.android/sdk" >> $GITHUB_ENV
+          echo "PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:${{ github.workspace }}/.android/sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.android/sdk/platform-tools:${PATH}" >> $GITHUB_ENV
           python -m pip install --upgrade pip
           python -m pip install buildozer cython==0.29.36 virtualenv
 
@@ -37,25 +39,34 @@ jobs:
 
       - name: Install Android cmdline-tools + SDK/NDK (official free)
         env:
-          ANDROID_SDK_ROOT: ${{ github.workspace }}/.android/sdk
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         run: |
           set -e
-          mkdir -p "${ANDROID_SDK_ROOT}"
-          cd "${ANDROID_SDK_ROOT}"
+          mkdir -p "$ANDROID_SDK_ROOT"
+          cd "$ANDROID_SDK_ROOT"
           curl -L -o cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
           mkdir -p cmdline-tools
-          unzip -q cmdtools.zip -d cmdline-tools
-          mv cmdline-tools/cmdline-tools cmdline-tools/latest
-          export PATH="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${JAVA_HOME}/bin:${PATH}"
-          yes | sdkmanager --sdk_root="${ANDROID_SDK_ROOT}" --licenses || true
-          sdkmanager --sdk_root="${ANDROID_SDK_ROOT}" \
+          unzip -q -o cmdtools.zip -d cmdline-tools
+          # 표준 위치 latest
+          [ -d cmdline-tools/cmdline-tools ] && mv -f cmdline-tools/cmdline-tools cmdline-tools/latest || true
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$JAVA_HOME/bin:$PATH"
+
+          # 라이선스 사전 수락(무인 설치)
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
+
+          # 필수 패키지(무료): platform-tools, platforms;android-34, build-tools 34.0.0/36.1.0, NDK, CMake
+          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0" \
+            "build-tools;36.1.0" \
             "ndk;25.1.8937393" \
             "cmake;3.22.1"
-          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
-          echo "PATH=${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${JAVA_HOME}/bin:${PATH}" >> $GITHUB_ENV
+
+          # 설치 확인(AIDL 위치 출력)
+          echo "Installed build-tools:"
+          ls -al "$ANDROID_SDK_ROOT/build-tools" || true
+          find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 2 -name aidl -print || true
 
       - name: Cache .buildozer (free cache)
         uses: actions/cache@v4
@@ -64,10 +75,18 @@ jobs:
           key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
 
       - name: Build with Buildozer (free toolchain)
+        env:
+          ANDROIDSDK: ${{ env.ANDROID_SDK_ROOT }}
+          ANDROIDNDK: ${{ env.ANDROID_SDK_ROOT }}/ndk/25.1.8937393
+          ANDROIDAPI: '34'
+          NDKAPI: '23'
+          PATH: ${{ env.ANDROID_SDK_ROOT }}/build-tools/36.1.0:${{ env.ANDROID_SDK_ROOT }}/build-tools/34.0.0:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.JAVA_HOME }}/bin:${{ env.PATH }}
         run: |
           python -V
           ls -al
           echo "# Check configuration tokens"
+          # aidl 존재 재확인
+          which aidl || true
           buildozer android debug
 
       - name: Upload APK (free artifact)
