@@ -51,11 +51,11 @@ jobs:
           [ -d cmdline-tools/cmdline-tools ] && mv -f cmdline-tools/cmdline-tools cmdline-tools/latest || true
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$JAVA_HOME/bin:$PATH"
 
-          # 라이선스 2회 강제 수락
+          # accept licenses twice
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
           yes | sdkmanager --licenses || true
 
-          # 안정 조합 설치 (AIDL 포함)
+          # install stable components with AIDL
           sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-34" \
@@ -69,18 +69,21 @@ jobs:
           echo "== AIDL search =="
           find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 2 -name aidl -print || true
 
-          # Buildozer가 찾는 legacy 경로에 sdkmanager 링크 생성
+          # Map SDK to buildozer's expected legacy layout
           LEGACY="$HOME/.buildozer/android/platform/android-sdk"
-          mkdir -p "$LEGACY/tools/bin"
-          # sdk 실제 경로를 전체 매핑
+          mkdir -p "$LEGACY"
+          # link whole SDK root
           if [ ! -e "$LEGACY" ]; then
             mkdir -p "$(dirname "$LEGACY")"
             ln -s "$ANDROID_SDK_ROOT" "$LEGACY"
           fi
-          # sdkmanager 파일 링크(오래된 경로 호환)
+          # ensure legacy tools/bin exists and link sdkmanager there
+          mkdir -p "$LEGACY/tools/bin"
           if [ ! -e "$LEGACY/tools/bin/sdkmanager" ]; then
             ln -s "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$LEGACY/tools/bin/sdkmanager"
           fi
+          # ensure build-tools directory exists (it should via root link, but double-ensure)
+          [ -d "$LEGACY/build-tools" ] || ln -s "$ANDROID_SDK_ROOT/build-tools" "$LEGACY/build-tools"
 
       - name: Cache .buildozer (free)
         uses: actions/cache@v4
@@ -100,8 +103,10 @@ jobs:
           which aidl || (echo "aidl not in PATH"; exit 1)
           echo "# which sdkmanager"
           which sdkmanager || (echo "sdkmanager not in PATH"; exit 1)
-          # Buildozer가 내부에서 legacy 경로를 검사하므로 추가 확인
-          test -x "$HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager" || (echo "legacy sdkmanager link missing"; exit 1)
+          echo "# legacy sdkmanager exists?"
+          test -x "$HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager" || (echo "legacy sdkmanager link missing"; ls -al "$HOME/.buildozer/android/platform/android-sdk/tools/bin" || true; exit 1)
+          echo "# legacy build-tools exists?"
+          test -d "$HOME/.buildozer/android/platform/android-sdk/build-tools" || (echo "legacy build-tools link missing"; exit 1)
 
           export ANDROIDSDK="$ANDROID_SDK_ROOT"
           export ANDROIDNDK="$ANDROID_SDK_ROOT/ndk/25.1.8937393"
