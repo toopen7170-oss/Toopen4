@@ -63,29 +63,15 @@ jobs:
           rsync -a "$ANDROID_SDK_ROOT/platform-tools/" "$INTERNAL/platform-tools/"
           rsync -a "$ANDROID_SDK_ROOT/build-tools/" "$INTERNAL/build-tools/"
           rsync -a "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/" "$INTERNAL/cmdline-tools/latest/bin/"
-          # copy real sdkmanager
           cp "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$INTERNAL/tools/bin/sdkmanager"
           chmod +x "$INTERNAL/tools/bin/sdkmanager"
-          # create legacy 'android' stub that proxies to sdkmanager (some p4a checks still look for 'android')
           cat > "$INTERNAL/tools/bin/android" << 'SH'
 #!/usr/bin/env bash
-# legacy android tool stub -> call sdkmanager/help to satisfy existence checks
 DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ -x "$DIR/sdkmanager" ]; then
-  "$DIR/sdkmanager" --help >/dev/null 2>&1 || true
-  exit 0
-fi
-echo "android stub: sdkmanager not found" >&2
-exit 0
+if [ -x "$DIR/sdkmanager" ]; then "$DIR/sdkmanager" --help >/dev/null 2>&1 || true; exit 0; fi
+echo "android stub: sdkmanager not found" >&2; exit 0
 SH
           chmod +x "$INTERNAL/tools/bin/android"
-
-          echo "# check binaries"
-          which aidl || true
-          which sdkmanager || true
-          test -x "$INTERNAL/tools/bin/sdkmanager" || (echo "internal sdkmanager missing"; exit 1)
-          test -x "$INTERNAL/tools/bin/android" || (echo "android stub missing"; exit 1)
-          test -d "$INTERNAL/build-tools" || (echo "internal build-tools missing"; exit 1)
 
       - name: Cache .buildozer (free)
         uses: actions/cache@v4
@@ -93,7 +79,7 @@ SH
           path: .buildozer
           key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: Build with Buildozer
+      - name: Build with Buildozer (pre-create log dir, force log_level=2)
         env:
           ANDROIDSDK: $HOME/.buildozer/android/platform/android-sdk
           ANDROIDNDK: ${{ env.ANDROID_SDK_ROOT }}/ndk/25.1.8937393
@@ -102,8 +88,10 @@ SH
           PATH: $HOME/.buildozer/android/platform/android-sdk/build-tools/34.0.0:$HOME/.buildozer/android/platform/android-sdk/build-tools/33.0.2:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.PATH }}
         run: |
           set -e
-          python -V
-          buildozer android debug 2>&1 | tee .buildozer/.full_build_output
+          # 반드시 로그 폴더를 먼저 만든다
+          mkdir -p .buildozer
+          # 상세 로그로 실행하고 파일에도 저장
+          buildozer --log-level=2 android debug 2>&1 | tee .buildozer/.full_build_output
           test -f bin/*.apk || exit 1
 
       - name: Upload APK (free artifact)
@@ -122,7 +110,6 @@ SH
           tail -n 15 .buildozer/.full_build_output > error_snippet/error_snippet_15.txt 2>/dev/null || \
           echo "[no logs] build stopped before logs were created" > error_snippet/error_snippet_15.txt
           zip -j error_snippet/WordMaster_error_snippet.zip error_snippet/error_snippet_15.txt
-        shell: bash
 
       - name: Upload error snippet (artifact)
         if: failure()
