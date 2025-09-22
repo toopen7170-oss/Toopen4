@@ -52,7 +52,7 @@ jobs:
             "ndk;25.1.8937393" \
             "cmake;3.22.1"
 
-      - name: Reset & copy internal SDK (physical files + android stub)
+      - name: Reset & copy internal SDK (real files + android stub)
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         run: |
@@ -68,8 +68,12 @@ jobs:
           cat > "$INTERNAL/tools/bin/android" << 'SH'
 #!/usr/bin/env bash
 DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ -x "$DIR/sdkmanager" ]; then "$DIR/sdkmanager" --help >/dev/null 2>&1 || true; exit 0; fi
-echo "android stub: sdkmanager not found" >&2; exit 0
+if [ -x "$DIR/sdkmanager" ]; then
+  "$DIR/sdkmanager" --help >/dev/null 2>&1 || true
+  exit 0
+fi
+echo "android stub: sdkmanager not found" >&2
+exit 0
 SH
           chmod +x "$INTERNAL/tools/bin/android"
 
@@ -79,7 +83,7 @@ SH
           path: .buildozer
           key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: Build with Buildozer (pre-create log dir, force log_level=2)
+      - name: Build with Buildozer (pre-create log dir, log_level=2)
         env:
           ANDROIDSDK: $HOME/.buildozer/android/platform/android-sdk
           ANDROIDNDK: ${{ env.ANDROID_SDK_ROOT }}/ndk/25.1.8937393
@@ -88,9 +92,7 @@ SH
           PATH: $HOME/.buildozer/android/platform/android-sdk/build-tools/34.0.0:$HOME/.buildozer/android/platform/android-sdk/build-tools/33.0.2:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.PATH }}
         run: |
           set -e
-          # 반드시 로그 폴더를 먼저 만든다
           mkdir -p .buildozer
-          # 상세 로그로 실행하고 파일에도 저장
           buildozer --log-level=2 android debug 2>&1 | tee .buildozer/.full_build_output
           test -f bin/*.apk || exit 1
 
