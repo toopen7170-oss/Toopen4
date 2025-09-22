@@ -51,11 +51,11 @@ jobs:
           [ -d cmdline-tools/cmdline-tools ] && mv -f cmdline-tools/cmdline-tools cmdline-tools/latest || true
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$JAVA_HOME/bin:$PATH"
 
-          # 라이선스 강제 수락(2회)
+          # 라이선스 2회 강제 수락
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
           yes | sdkmanager --licenses || true
 
-          # AIDL 포함 안정 조합만 설치
+          # 안정 조합 설치 (AIDL 포함)
           sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-34" \
@@ -69,30 +69,39 @@ jobs:
           echo "== AIDL search =="
           find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 2 -name aidl -print || true
 
+          # Buildozer가 찾는 legacy 경로에 sdkmanager 링크 생성
+          LEGACY="$HOME/.buildozer/android/platform/android-sdk"
+          mkdir -p "$LEGACY/tools/bin"
+          # sdk 실제 경로를 전체 매핑
+          if [ ! -e "$LEGACY" ]; then
+            mkdir -p "$(dirname "$LEGACY")"
+            ln -s "$ANDROID_SDK_ROOT" "$LEGACY"
+          fi
+          # sdkmanager 파일 링크(오래된 경로 호환)
+          if [ ! -e "$LEGACY/tools/bin/sdkmanager" ]; then
+            ln -s "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$LEGACY/tools/bin/sdkmanager"
+          fi
+
       - name: Cache .buildozer (free)
         uses: actions/cache@v4
         with:
           path: .buildozer
           key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: Build with Buildozer (map SDK path; ensure aidl in PATH)
+      - name: Build with Buildozer (ensure aidl/sdkmanager)
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
           JAVA_HOME: ${{ env.JAVA_HOME }}
-          # aidl 우선 경로
           PATH: ${{ env.ANDROID_SDK_ROOT }}/build-tools/34.0.0:${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.2:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.JAVA_HOME }}/bin:${{ env.PATH }}
         run: |
           set -e
           python -V
-          # Buildozer가 기대하는 SDK 경로로 심볼릭 링크(없으면 생성)
-          P4A_SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
-          mkdir -p "$(dirname "$P4A_SDK_DIR")"
-          [ -e "$P4A_SDK_DIR" ] || ln -s "$ANDROID_SDK_ROOT" "$P4A_SDK_DIR"
-
           echo "# which aidl"
           which aidl || (echo "aidl not in PATH"; exit 1)
-          echo "# list aidl locations"
-          find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 2 -name aidl -print || true
+          echo "# which sdkmanager"
+          which sdkmanager || (echo "sdkmanager not in PATH"; exit 1)
+          # Buildozer가 내부에서 legacy 경로를 검사하므로 추가 확인
+          test -x "$HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager" || (echo "legacy sdkmanager link missing"; exit 1)
 
           export ANDROIDSDK="$ANDROID_SDK_ROOT"
           export ANDROIDNDK="$ANDROID_SDK_ROOT/ndk/25.1.8937393"
