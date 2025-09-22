@@ -58,7 +58,7 @@ jobs:
             "ndk;25.1.8937393" \
             "cmake;3.22.1"
 
-      - name: Prepare buildozer internal SDK (copy + wrapper)
+      - name: Prepare buildozer internal SDK (copy + wrapper without heredoc)
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         run: |
@@ -69,16 +69,13 @@ jobs:
           rsync -a "$ANDROID_SDK_ROOT/platform-tools/" "$INTERNAL/platform-tools/"
           rsync -a "$ANDROID_SDK_ROOT/build-tools/" "$INTERNAL/build-tools/"
           rsync -a "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/" "$INTERNAL/cmdline-tools/latest/bin/"
-
-          # legacy tools/bin/sdkmanager → 항상 cmdline-tools를 호출하는 래퍼
-          cat > "$INTERNAL/tools/bin/sdkmanager" <<'SH'
-#!/usr/bin/env bash
-SDK_ROOT="${ANDROID_SDK_ROOT:-$HOME/.buildozer/android/platform/android-sdk}"
-REAL="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-exec "$REAL" "$@"
-SH
+          # wrapper: tools/bin/sdkmanager → cmdline-tools sdkmanager 호출
+          printf '%s\n' '#!/usr/bin/env bash' \
+            'SDK_ROOT="${ANDROID_SDK_ROOT:-$HOME/.buildozer/android/platform/android-sdk}"' \
+            'REAL="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"' \
+            'exec "$REAL" "$@"' \
+            > "$INTERNAL/tools/bin/sdkmanager"
           chmod +x "$INTERNAL/tools/bin/sdkmanager"
-
           # android 존재 체크 우회 스텁
           printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$INTERNAL/tools/bin/android"
           chmod +x "$INTERNAL/tools/bin/android"
@@ -88,7 +85,7 @@ SH
           set -e
           echo ">>> java"; which java; java -version || true
           echo ">>> PATH sdkmanager"; which sdkmanager || true
-          echo ">>> INTERNAL wrapper"; ls -al "$HOME/.buildozer/android/platform/android-sdk/tools/bin" || true
+          echo ">>> INTERNAL wrapper list"; ls -al "$HOME/.buildozer/android/platform/android-sdk/tools/bin" || true
           echo ">>> aidl"; which aidl || true
           echo ">>> ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
