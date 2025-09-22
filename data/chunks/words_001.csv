@@ -1,0 +1,51 @@
+id,en,ko,vi,zh,ja,es,th,stage,level
+c0001,teacher,선생님,giáo viên,老师,先生,maestro,ครู,basic,3
+c0002,student,학생,học sinh,学生,生徒,estudiante,นักเรียน,basic,3
+c0003,beautiful,아름다운,đẹp,美丽,美しい,hermoso,สวยงาม,beginner,5
+c0004,apple,사과,táo,苹果,りんご,manzana,แอปเปิล,beginner,1
+c0005,book,책,sách,书,本,libro,หนังสือ,beginner,1
+c0006,water,물,nước,水,水,agua,น้ำ,beginner,1
+c0007,friend,친구,bạn bè,朋友,友だち,amigo,เพื่อน,beginner,2
+c0008,family,가족,gia đình,家庭,家族,familia,ครอบครัว,beginner,2
+c0009,city,도시,thành phố,城市,都市,ciudad,เมือง,beginner,2
+c0010,food,음식,thức ăn,食物,食べ物,comida,อาหาร,beginner,2
+c0011,house,집,nhà,房子,家,casa,บ้าน,beginner,2
+c0012,car,자동차,xe ô tô,汽车,車,coche,รถยนต์,beginner,2
+c0013,work,일하다,làm việc,工作,働く,trabajar,ทำงาน,beginner,2
+c0014,play,놀다,chơi,玩,遊ぶ,jugar,เล่น,beginner,2
+c0015,run,달리다,chạy,跑,走る,correr,วิ่ง,beginner,2
+c0016,slow,느린,chậm,慢,遅い,lento,ช้า,beginner,3
+c0017,fast,빠른,nhanh,快,速い,rápido,เร็ว,beginner,3
+c0018,hot,뜨거운,nóng,热,熱い,caliente,ร้อน,beginner,3
+c0019,cold,차가운,lạnh,冷,冷たい,frío,เย็น,beginner,3
+c0020,market,시장,chợ,市场,市場,mercado,ตลาด,beginner,3
+c0021,teacher is kind,선생님은 친절하다,giáo viên thì tốt bụng,老师很亲切,先生は親切だ,el maestro es amable,ครูใจดี,beginner,4
+c0022,students study hard,학생들은 열심히 공부한다,học sinh học chăm chỉ,学生努力学习,生徒は一生懸命勉強する,los estudiantes estudian mucho,นักเรียนขยันเรียน,beginner,4
+c0023,this apple is sweet,이 사과는 달다,quả táo này ngọt,这个苹果很甜,このりんごは甘い,esta manzana es dulce,แอปเปิลนี้หวาน,beginner,4
+c0024,drink water every day,매일 물을 마셔라,uống nước mỗi ngày,每天喝水,毎日水を飲む,bebe agua cada día,ดื่มน้ำทุกวัน,beginner,4
+c0025,my friend lives in the city,내 친구는 도시에 산다,bạn tôi sống ở thành phố,我的朋友住在城市,友だちは都市に住む,mi amigo vive en la ciudad,เพื่อนฉันอยู่ในเมือง,beginner,4
+c0026,blue,파란,xanh dương,蓝色,青い,azul,สีน้ำเงิน,beginner,2
+c0027,red,빨간,đỏ,红色,赤い,rojo,สีแดง,beginner,2
+c0028,green,초록,xanh lá,绿色,緑,verde,สีเขียว,beginner,2
+c0029,yellow,노란,vàng,黄色,黄色,amarillo,สีเหลือง,beginner,2
+c0030,black,검은,đen,黑色,黒,negro,สีดำ,beginner,2
+c0031,open,열다,mở,打开,開ける,abrir,เปิด,beginner,2
+c0032,close,닫다,đóng,关闭,閉める,cerrar,ปิด,beginner,2
+c0033,write,쓰다,viết,写,書く,escribir,เขียน,beginner,2
+c0034,read,읽다,đọc,读,読む,leer,อ่าน,beginner,2
+c0035,speak,말하다,nói,说,話す,hablar,พูด,beginner,2
+c0036,listen,듣다,nghe,听,聞く,escuchar,ฟัง,beginner,2
+c0037,buy,사다,mua,买,買う,comprar,ซื้อ,beginner,2
+c0038,sell,팔다,bán,卖,売る,vender,ขาย,beginner,2
+c0039,help,도와주다,giúp,帮助,助ける,ayudar,ช่วย,beginner,2
+c0040,need,필요하다,cần,需要,必要だ,necesitar,ต้องการ,beginner,2
+c0041,the book is on the table,책이 책상 위에 있다,quyển sách ở trên bàn,书在桌子上,本は机の上にある,el libro está sobre la mesa,หนังสืออยู่บนโต๊ะ,beginner,4
+c0042,she runs very fast,그녀는 아주 빠르게 달린다,cô ấy chạy rất nhanh,她跑得很快,彼女はとても速く走る,ella corre muy rápido,เธอวิ่งเร็วมาก,beginner,4
+c0043,please close the door,문을 닫아 주세요,xin đóng cửa lại,请关门,ドアを閉めてください,por favor cierra la puerta,กรุณาปิดประตู,beginner,4
+c0044,they speak Spanish,그들은 스페인어를 말한다,họ nói tiếng Tây Ban Nha,他们说西班牙语,彼らはスペイン語を話す,ellos hablan español,พวกเขาพูดภาษาสเปน,beginner,4
+c0045,we need more water,우리는 물이 더 필요하다,chúng tôi cần thêm nước,我们需要更多的水,私たちはもっと水が必要だ,necesitamos más agua,เราต้องการน้ำมากขึ้น,beginner,4
+c0046,teacher explains slowly,선생님은 천천히 설명한다,giáo viên giải thích chậm,老师慢慢解释,先生はゆっくり説明する,el maestro explica despacio,ครูอธิบายช้าๆ,beginner,4
+c0047,students read books,학생들이 책을 읽는다,học sinh đọc sách,学生读书,生徒は本を読む,los estudiantes leen libros,นักเรียนอ่านหนังสือ,beginner,4
+c0048,open the window,창문을 열어라,mở cửa sổ,打开窗户,窓を開けて,abre la ventana,เปิดหน้าต่าง,beginner,4
+c0049,help your friend,친구를 도와라,giúp bạn,帮助你的朋友,友だちを助けて,ayuda a tu amigo,ช่วยเพื่อนของคุณ,beginner,4
+c0050,sell fresh apples,신선한 사과를 팔아라,bán táo tươi,卖新鲜的苹果,新鮮なりんごを売って,vende manzanas frescas,ขายแอปเปิลสด,beginner,4
