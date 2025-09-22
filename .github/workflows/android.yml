@@ -8,8 +8,11 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -27,7 +30,9 @@ jobs:
           echo "PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:${{ github.workspace }}/.android/sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.android/sdk/platform-tools:${PATH}" >> $GITHUB_ENV
 
       - name: Install Android SDK/NDK (cmdline-tools)
-        env: { ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}, JAVA_HOME: ${{ env.JAVA_HOME }} }
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+          JAVA_HOME: ${{ env.JAVA_HOME }}
         run: |
           set -e
           mkdir -p "$ANDROID_SDK_ROOT"
@@ -35,7 +40,7 @@ jobs:
           curl -L -o cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
           mkdir -p cmdline-tools
           unzip -q -o cmdtools.zip -d cmdline-tools
-          [ -d cmdline-tools/cmdline-tools ] && mv -f cmdline-tools/cmdline-tools cmdline-tools/latest || true
+          if [ -d cmdline-tools/cmdline-tools ]; then mv -f cmdline-tools/cmdline-tools cmdline-tools/latest; fi
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$JAVA_HOME/bin:$PATH"
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
           yes | sdkmanager --licenses || true
@@ -48,7 +53,8 @@ jobs:
             "cmake;3.22.1"
 
       - name: Reset & copy internal SDK (physical files)
-        env: { ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }} }
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         run: |
           set -e
           INTERNAL="$HOME/.buildozer/android/platform/android-sdk"
@@ -80,7 +86,7 @@ jobs:
         run: |
           set -e
           python -V
-          # 표준 출력/에러를 파일로도 저장(추후 스니펫 추출 용)
+          # capture full output for snippet fallback
           buildozer android debug 2>&1 | tee .buildozer/.full_build_output
           test -f bin/*.apk || exit 1
 
@@ -95,12 +101,10 @@ jobs:
         if: failure()
         run: |
           mkdir -p error_snippet
-          # 우선순위: 부트스트랩 로그 → 기타 로그 → 전체 출력
           tail -n 15 .buildozer/android/platform/build-*/build/bootstraps/*/build.log > error_snippet/error_snippet_15.txt 2>/dev/null || \
           tail -n 15 .buildozer/android/platform/build-*/build/*.log > error_snippet/error_snippet_15.txt 2>/dev/null || \
           tail -n 15 .buildozer/.full_build_output > error_snippet/error_snippet_15.txt 2>/dev/null || \
           echo "[no logs] build stopped before logs were created" > error_snippet/error_snippet_15.txt
-          # WordMaster 번들(zip)로 저장(로컬 다운로드용)
           zip -j error_snippet/WordMaster_error_snippet.zip error_snippet/error_snippet_15.txt
 
       - name: Upload error snippet (artifact)
