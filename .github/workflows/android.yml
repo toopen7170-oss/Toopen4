@@ -51,11 +51,11 @@ jobs:
           [ -d cmdline-tools/cmdline-tools ] && mv -f cmdline-tools/cmdline-tools cmdline-tools/latest || true
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$JAVA_HOME/bin:$PATH"
 
-          # 라이선스 비대화형 수락(두 번 수행하여 환경차 흡수)
+          # 라이선스 강제 수락(2회)
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
           yes | sdkmanager --licenses || true
 
-          # 안정 조합 설치: 33.0.2 + 34.0.0 (둘 다 AIDL 포함)
+          # AIDL 포함 안정 조합만 설치
           sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-34" \
@@ -64,36 +64,41 @@ jobs:
             "ndk;25.1.8937393" \
             "cmake;3.22.1"
 
-          echo "== Installed build-tools =="
+          echo "== build-tools installed =="
           ls -al "$ANDROID_SDK_ROOT/build-tools" || true
           echo "== AIDL search =="
           find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 2 -name aidl -print || true
 
-          echo "PATH=$PATH" >> $GITHUB_ENV
-          echo "ANDROIDSDK=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "ANDROIDNDK=$ANDROID_SDK_ROOT/ndk/25.1.8937393" >> $GITHUB_ENV
-          echo "ANDROIDAPI=34" >> $GITHUB_ENV
-          echo "NDKAPI=23" >> $GITHUB_ENV
-
-      - name: Cache .buildozer (free cache)
+      - name: Cache .buildozer (free)
         uses: actions/cache@v4
         with:
           path: .buildozer
           key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: Build with Buildozer (free toolchain)
+      - name: Build with Buildozer (map SDK path; ensure aidl in PATH)
         env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+          # aidl 우선 경로
           PATH: ${{ env.ANDROID_SDK_ROOT }}/build-tools/34.0.0:${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.2:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.JAVA_HOME }}/bin:${{ env.PATH }}
-          ANDROIDSDK: ${{ env.ANDROIDSDK }}
-          ANDROIDNDK: ${{ env.ANDROIDNDK }}
-          ANDROIDAPI: ${{ env.ANDROIDAPI }}
-          NDKAPI: ${{ env.NDKAPI }}
         run: |
           set -e
           python -V
-          ls -al
-          echo "# Check aidl in PATH"
-          which aidl || (echo "aidl still missing in PATH"; exit 1)
+          # Buildozer가 기대하는 SDK 경로로 심볼릭 링크(없으면 생성)
+          P4A_SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          mkdir -p "$(dirname "$P4A_SDK_DIR")"
+          [ -e "$P4A_SDK_DIR" ] || ln -s "$ANDROID_SDK_ROOT" "$P4A_SDK_DIR"
+
+          echo "# which aidl"
+          which aidl || (echo "aidl not in PATH"; exit 1)
+          echo "# list aidl locations"
+          find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 2 -name aidl -print || true
+
+          export ANDROIDSDK="$ANDROID_SDK_ROOT"
+          export ANDROIDNDK="$ANDROID_SDK_ROOT/ndk/25.1.8937393"
+          export ANDROIDAPI=34
+          export NDKAPI=23
+
           buildozer android debug
 
       - name: Upload APK (free artifact)
